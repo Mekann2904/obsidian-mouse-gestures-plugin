@@ -1,28 +1,30 @@
-### 導入方法 / Installation Guide
+### **導入方法 / Installation Guide**
 
 1. **日本語**  
-   - リリースページから `obsidian-mouse-gestures-plugin.zip` をダウンロードします。  
-   - ダウンロードしたファイルを解凍し、Obsidian のプラグインディレクトリ（`Vault/.obsidian/plugins`）に移動します。  
-   - Obsidian を開き、設定画面でプラグインを有効化します。  
+   - [リリースページ](https://github.com/)から `obsidian-mouse-gestures-plugin.zip` をダウンロードしてください。  
+   - ダウンロードしたファイルを解凍し、`Vault/.obsidian/plugins` ディレクトリに移動します。  
+   - Obsidian を開き、設定画面からプラグインを有効化してください。  
 
 2. **English**  
-   - Download `obsidian-mouse-gestures-plugin.zip` from the release page.  
-   - Extract the file and move it to Obsidian's plugin directory (`Vault/.obsidian/plugins`).  
+   - Download the `obsidian-mouse-gestures-plugin.zip` file from the [release page](https://github.com/).  
+   - Extract the file and move it to the `Vault/.obsidian/plugins` directory.  
    - Open Obsidian, go to the settings, and enable the plugin.  
 
 ---
 
-### 使用方法 / How to Use
+### **使用方法 / How to Use**
 
 1. **日本語**  
-   - 右クリックしながらジェスチャーを行ってください。  
-   - 設定画面で利用可能なジェスチャーの一覧を確認できます。  
+   - **Cmd (または Ctrl) キーを押しながら右クリック** でジェスチャーを開始します。  
+   - 設定画面で利用可能なジェスチャーやカスタマイズ設定を確認できます。  
 
 2. **English**  
-   - Perform gestures by holding down the right mouse button.  
-   - You can check the list of available gestures in the settings.
+   - Start gestures by **holding down the Cmd (or Ctrl) key and right-clicking**.  
+   - You can view available gestures and customize settings in the plugin's settings page.  
 
-### 記事等
-[note記事 https://note.com/mekann/n/na2bb44e8be56](https://note.com/mekann/n/na2bb44e8be56)
+---
 
-[実演 https://x.com/Mekann2904/status/1880588630974181567](https://x.com/Mekann2904/status/1880588630974181567)
+### **関連リンク / Related Links**
+
+- [解説記事 (note)](https://note.com/mekann/n/na2bb44e8be56)  
+- [実演動画 (Twitter)](https://x.com/Mekann2904/status/1880588630974181567)  
