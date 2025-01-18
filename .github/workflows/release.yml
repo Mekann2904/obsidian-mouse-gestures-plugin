@@ -1,0 +1,45 @@
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18.x"
+
+      - name: Build plugin
+        run: |
+          npm install
+          npm run build
+
+      # 必要なファイルを ZIP にまとめる
+      - name: Create ZIP of assets
+        run: |
+          mkdir obsidian-mouse-gestures-plugin
+          cp main.js ./obsidian-mouse-gestures-plugin/
+          cp manifest.json ./obsidian-mouse-gestures-plugin/
+          cp styles.css ./obsidian-mouse-gestures-plugin/
+          zip -r obsidian-mouse-gestures-plugin.zip obsidian-mouse-gestures-plugin/
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # タグ名の取得
+          tag="${GITHUB_REF##*/}"
+
+          # リリース作成
+          gh release create "$tag" \
+            --title="Release $tag" \
+            --draft \
+            obsidian-mouse-gestures-plugin.zip
