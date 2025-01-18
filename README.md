@@ -1,0 +1,1 @@
+# obsidian-mouse-gestures-plugin
