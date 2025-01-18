@@ -93,36 +93,39 @@ const LANG_DICT = {
 };
 
 /* -------------------------------------------------------------------------
- * ナビゲーション用のトグルをまとめたインターフェース
+ * ナビゲーション用のトグル
  * ------------------------------------------------------------------------- */
 interface NavigationToggles {
-	enableScrollTop: boolean;       // up 方向でトップへスクロール
-	enableHistoryBack: boolean;     // left 方向で履歴戻る
-	enableHistoryForward: boolean;  // right 方向で履歴進む
-	enableCloseTab: boolean;        // D-R でタブを閉じる
-	enableRestoreTab: boolean;      // U-R でタブを復元
-	enableReload: boolean;          // U-D でリロード
+	enableScrollTop: boolean;
+	enableHistoryBack: boolean;
+	enableHistoryForward: boolean;
+	enableCloseTab: boolean;
+	enableRestoreTab: boolean;
+	enableReload: boolean;
 }
 
 /* -------------------------------------------------------------------------
  * 設定インターフェース
+ *    ※ Cmd + 右クリック のみで動かすため、
+ *      enableRegularGesture / enableCmdGesture は削除
  * ------------------------------------------------------------------------- */
 interface MouseGesturesSettings {
-	language: "en" | "jp";          
-	enableDrawing: boolean;         
-	strokeColor: string;            
-	lineWidth: number;              
-	gestureSensitivity: number;     
-	enableMultiDirection: boolean;  
-	enableDebugLog: boolean;        
-	showOverlay: boolean;           
-	maxClosedTabHistory: number;    
+	language: "en" | "jp";
+
+	enableDrawing: boolean;
+	strokeColor: string;
+	lineWidth: number;
+	gestureSensitivity: number;
+	enableMultiDirection: boolean;
+	enableDebugLog: boolean;
+	showOverlay: boolean;
+	maxClosedTabHistory: number;
 
 	navigation: NavigationToggles;
 }
 
 /* -------------------------------------------------------------------------
- * 設定のデフォルト値
+ * デフォルト設定
  * ------------------------------------------------------------------------- */
 const DEFAULT_SETTINGS: MouseGesturesSettings = {
 	language: "en",
@@ -153,8 +156,8 @@ export default class MouseGesturesPlugin extends Plugin {
 
 	private canvasEl: HTMLCanvasElement | null = null;
 	private ctx: CanvasRenderingContext2D | null = null;
-	private isDrawing = false;
 
+	private isDrawing = false;
 	private points: { x: number; y: number }[] = [];
 	private MIN_DISTANCE = 3; 
 
@@ -172,6 +175,7 @@ export default class MouseGesturesPlugin extends Plugin {
 
 		this.addSettingTab(new MouseGesturesSettingTab(this.app, this));
 
+		// イベント登録
 		this.registerDomEvent(document, "mousedown", this.onMouseDown.bind(this));
 		this.registerDomEvent(document, "mousemove", this.onMouseMove.bind(this));
 		this.registerDomEvent(document, "mouseup", this.onMouseUp.bind(this));
@@ -179,13 +183,14 @@ export default class MouseGesturesPlugin extends Plugin {
 	}
 
 	onunload() {
-		if (this.settings?.enableDebugLog) {
-			console.log("[MouseGestures] Unloading: MouseGesturesPlugin");
-		}
+		this.debugLog("Unloading: MouseGesturesPlugin");
 		this.cleanupCanvas();
 		this.removeOverlay();
 	}
 
+	/* --------------------------------------------
+	 * 設定のロード／セーブ
+	 * -------------------------------------------- */
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
@@ -194,52 +199,63 @@ export default class MouseGesturesPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
+	/* --------------------------------------------
+	 * デバッグログ
+	 * -------------------------------------------- */
 	private debugLog(...args: any[]) {
 		if (this.settings?.enableDebugLog) {
 			console.log("[MouseGestures]", ...args);
 		}
 	}
 
-	private debugError(...args: any[]) {
-		if (this.settings?.enableDebugLog) {
-			console.error("[MouseGestures] ERROR:", ...args);
-		}
-	}
-
+	/* --------------------------------------------
+	 * 右クリック押下
+	 * -------------------------------------------- */
 	private onMouseDown(evt: MouseEvent) {
-		this.recognizedGesture = false;
-		if (evt.button !== 2) return; 
+		// 右クリック以外は無視
+		if (evt.button !== 2) return;
 
-		if (!this.isGestureAvailable()) {
-			this.debugLog("Gesture is not available in current context.");
+		// Cmd(またはCtrl)キーが押されていない場合はジェスチャー開始しない
+		const cmdPressed = evt.metaKey || evt.ctrlKey;
+		if (!cmdPressed) {
+			this.debugLog("Cmd/Ctrl not pressed => do nothing.");
 			return;
 		}
 
-		this.debugLog("Right mouse button down - start gesture tracking");
-
-		if (this.settings.enableDrawing) {
-			this.setupCanvas();
+		// アクティブなリーフがない場合はジェスチャー不可
+		if (!this.isGestureAvailable()) {
+			this.debugLog("Gesture not available in current context.");
+			return;
 		}
 
+		// ここまで来たら Cmd+右クリック ジェスチャー開始
+		this.debugLog("Cmd+Right mouse down => start gesture tracking");
+		this.recognizedGesture = false;
 		this.isDrawing = true;
-		this.points = [];
-		this.points.push({ x: evt.clientX, y: evt.clientY });
 
+		this.points = [{ x: evt.clientX, y: evt.clientY }];
 		this.startX = evt.clientX;
 		this.startY = evt.clientY;
 
-		if (this.ctx && this.settings.enableDrawing) {
-			this.ctx.beginPath();
-			this.ctx.moveTo(evt.clientX, evt.clientY);
+		if (this.settings.enableDrawing) {
+			this.setupCanvas();
+			if (this.ctx) {
+				this.ctx.beginPath();
+				this.ctx.moveTo(evt.clientX, evt.clientY);
+			}
 		}
 	}
 
+	/* --------------------------------------------
+	 * マウス移動
+	 * -------------------------------------------- */
 	private onMouseMove(evt: MouseEvent) {
 		if (!this.isDrawing) return;
 		if (!this.isGestureAvailable()) return;
 
 		const lastPoint = this.points[this.points.length - 1];
 		const dist = this.getDistance(lastPoint.x, lastPoint.y, evt.clientX, evt.clientY);
+
 		if (dist >= this.MIN_DISTANCE) {
 			this.points.push({ x: evt.clientX, y: evt.clientY });
 
@@ -250,31 +266,40 @@ export default class MouseGesturesPlugin extends Plugin {
 		}
 	}
 
+	/* --------------------------------------------
+	 * マウスボタンを離した
+	 * -------------------------------------------- */
 	private onMouseUp(evt: MouseEvent) {
-		if (!this.isDrawing || evt.button !== 2) return;
+		// 右クリック以外 or ジェスチャー中でない場合は無視
+		if (evt.button !== 2 || !this.isDrawing) return;
 
 		this.isDrawing = false;
 		const totalDist = this.getDistance(this.startX, this.startY, evt.clientX, evt.clientY);
+		this.debugLog("onMouseUp totalDist=", totalDist);
 
 		if (totalDist > this.settings.gestureSensitivity) {
-			this.recognizedGesture = true;
-			this.cleanupCanvas();
-
 			const directions = this.analyzePath(this.points);
 			const finalGesture = this.inferGesture(directions);
 			this.debugLog("Directions:", directions, "-> final:", finalGesture);
 
-			this.executeGesture(finalGesture);
+			const success = this.executeGesture(finalGesture);
+			this.recognizedGesture = success;
 		} else {
-			this.debugLog("Movement too small - treat as normal context menu");
+			this.debugLog("Movement too small => normal context menu");
+			this.recognizedGesture = false;
 		}
 
+		this.cleanupCanvas();
 		this.points = [];
 	}
 
+	/* --------------------------------------------
+	 * contextmenu (右クリックメニュー)
+	 * -------------------------------------------- */
 	private onContextMenu(evt: MouseEvent) {
+		// ジェスチャーと判定された場合のみメニューをブロック
 		if (evt.button === 2 && this.recognizedGesture) {
-			this.debugLog("Context menu suppressed due to recognized gesture.");
+			this.debugLog("Context menu blocked (recognized gesture).");
 			evt.preventDefault();
 			evt.stopPropagation();
 		} else {
@@ -282,12 +307,17 @@ export default class MouseGesturesPlugin extends Plugin {
 		}
 	}
 
+	/* --------------------------------------------
+	 * アクティブリーフがあるかどうか
+	 * -------------------------------------------- */
 	private isGestureAvailable(): boolean {
 		const activeLeaf = this.app.workspace.activeLeaf;
-		if (!activeLeaf) return false;
-		return true;
+		return !!activeLeaf;
 	}
 
+	/* --------------------------------------------
+	 * 描画用キャンバスのセットアップ
+	 * -------------------------------------------- */
 	private setupCanvas() {
 		this.cleanupCanvas();
 		this.canvasEl = document.createElement("canvas");
@@ -308,6 +338,9 @@ export default class MouseGesturesPlugin extends Plugin {
 		}
 	}
 
+	/* --------------------------------------------
+	 * キャンバスを破棄
+	 * -------------------------------------------- */
 	private cleanupCanvas() {
 		if (this.canvasEl) {
 			document.body.removeChild(this.canvasEl);
@@ -316,10 +349,13 @@ export default class MouseGesturesPlugin extends Plugin {
 		this.ctx = null;
 	}
 
+	/* --------------------------------------------
+	 * 方向解析
+	 * -------------------------------------------- */
 	private analyzePath(points: { x: number; y: number }[]): ("up" | "down" | "left" | "right")[] {
-		const result: ("up" | "down" | "left" | "right")[] = [];
-		if (points.length < 2) return result;
+		if (points.length < 2) return [];
 
+		const result: ("up" | "down" | "left" | "right")[] = [];
 		for (let i = 0; i < points.length - 1; i++) {
 			const p1 = points[i];
 			const p2 = points[i + 1];
@@ -342,7 +378,7 @@ export default class MouseGesturesPlugin extends Plugin {
 			result.push(dir);
 		}
 
-		// 同じ方向の連続をまとめる
+		// 同じ方向をまとめる
 		const simplified: ("up" | "down" | "left" | "right")[] = [];
 		for (let i = 0; i < result.length; i++) {
 			if (i === 0 || result[i] !== result[i - 1]) {
@@ -352,107 +388,115 @@ export default class MouseGesturesPlugin extends Plugin {
 		return simplified;
 	}
 
+	/* --------------------------------------------
+	 * 方向配列 => ジェスチャー文字列
+	 * -------------------------------------------- */
 	private inferGesture(dirs: ("up" | "down" | "left" | "right")[]): string {
 		if (!dirs.length) return "";
+
 		if (!this.settings.enableMultiDirection || dirs.length === 1) {
 			return dirs[0];
 		}
-		const first = dirs[0];
-		const second = dirs[1];
-		return first[0].toUpperCase() + "-" + second[0].toUpperCase();
+		// 先頭2方向を組み合わせる
+		return dirs[0][0].toUpperCase() + "-" + dirs[1][0].toUpperCase();
 	}
 
-	private executeGesture(finalGesture: string) {
+	/* --------------------------------------------
+	 * ジェスチャーを実行
+	 * -------------------------------------------- */
+	private executeGesture(finalGesture: string): boolean {
 		if (!finalGesture) {
-			this.debugLog("No gesture recognized - showing context menu");
-			return;
+			this.debugLog("No gesture recognized => do nothing");
+			return false;
 		}
-
 		const nav = this.settings.navigation;
 
-		if (finalGesture === "up") {
-			// up => scroll top
-			if (!nav.enableScrollTop) {
-				this.debugLog("Scroll top gesture disabled.");
-				return;
+		// 単方向
+		switch (finalGesture) {
+			case "up": {
+				if (!nav.enableScrollTop) {
+					this.debugLog("Scroll top gesture disabled.");
+					return false;
+				}
+				this.debugLog("Gesture: up => Scroll top");
+				this.showOverlayIfNeeded("↑", "Scroll top");
+				this.scrollToTop();
+				return true;
 			}
-			this.debugLog("Gesture: up => Scroll top");
-			this.showOverlayIfNeeded("↑", "Scroll top");
-			this.scrollToTop();
-			return;
-		} 
-		if (finalGesture === "left") {
-			if (!nav.enableHistoryBack) {
-				this.debugLog("History back gesture disabled.");
-				return;
+			case "left": {
+				if (!nav.enableHistoryBack) {
+					this.debugLog("History back gesture disabled.");
+					return false;
+				}
+				this.debugLog("Gesture: left => History back");
+				this.showOverlayIfNeeded("←", "History back");
+				window.history.back();
+				return true;
 			}
-			this.debugLog("Gesture: left => History back");
-			this.showOverlayIfNeeded("←", "History back");
-			window.history.back();
-			return;
-		} 
-		if (finalGesture === "right") {
-			if (!nav.enableHistoryForward) {
-				this.debugLog("History forward gesture disabled.");
-				return;
+			case "right": {
+				if (!nav.enableHistoryForward) {
+					this.debugLog("History forward gesture disabled.");
+					return false;
+				}
+				this.debugLog("Gesture: right => History forward");
+				this.showOverlayIfNeeded("→", "History forward");
+				window.history.forward();
+				return true;
 			}
-			this.debugLog("Gesture: right => History forward");
-			this.showOverlayIfNeeded("→", "History forward");
-			window.history.forward();
-			return;
 		}
-
-		// down (単方向) は削除済み
 
 		// 2方向
 		switch (finalGesture) {
 			case "U-R": {
 				if (!nav.enableRestoreTab) {
 					this.debugLog("Restore tab gesture disabled.");
-					return;
+					return false;
 				}
 				this.debugLog("Gesture: U-R => Restore last closed tab");
 				this.showOverlayIfNeeded("U-R", "Restore last closed tab");
 				this.restoreClosedTabInNewTab();
-				break;
+				return true;
 			}
 			case "D-R": {
 				if (!nav.enableCloseTab) {
 					this.debugLog("Close tab gesture disabled.");
-					return;
+					return false;
 				}
 				this.debugLog("Gesture: D-R => Close current tab");
 				this.showOverlayIfNeeded("D-R", "Close current tab");
 				this.closeCurrentTab();
-				break;
+				return true;
 			}
 			case "U-D": {
 				if (!nav.enableReload) {
 					this.debugLog("Reload gesture disabled.");
-					return;
+					return false;
 				}
 				this.debugLog("Gesture: U-D => Reload");
 				this.showOverlayIfNeeded("U-D", "Reload");
 				this.reloadObsidian();
-				break;
+				return true;
 			}
 			default: {
-				this.debugLog(`Gesture: ${finalGesture} => Not recognized L-shape`);
-				this.showOverlayIfNeeded(finalGesture, "Unknown gesture");
-				new Notice(`Unrecognized multi-gesture: ${finalGesture}`);
-				break;
+				this.debugLog(`Unknown gesture "${finalGesture}" => do nothing`);
+				return false;
 			}
 		}
 	}
 
+	/* --------------------------------------------
+	 * スクロール最上部へ移動
+	 * -------------------------------------------- */
 	private scrollToTop() {
 		const leaf = this.app.workspace.activeLeaf;
 		if (leaf && leaf.view instanceof MarkdownView) {
 			leaf.view.currentMode.applyScroll(0);
 		}
 	}
-	
 
+	/* --------------------------------------------
+	 * タブを閉じる
+	 * -------------------------------------------- */
 	private closeCurrentTab() {
 		const leaf = this.app.workspace.activeLeaf;
 		if (!leaf) {
@@ -462,6 +506,7 @@ export default class MouseGesturesPlugin extends Plugin {
 		const viewState = leaf.getViewState();
 		const filePath = viewState?.state?.file;
 		if (filePath && typeof filePath === "string") {
+			// タブ履歴に追加
 			this.closedTabsStack.push(filePath);
 			if (this.closedTabsStack.length > this.settings.maxClosedTabHistory) {
 				this.closedTabsStack.shift();
@@ -470,6 +515,9 @@ export default class MouseGesturesPlugin extends Plugin {
 		leaf.detach();
 	}
 
+	/* --------------------------------------------
+	 * 最後に閉じたタブを復元
+	 * -------------------------------------------- */
 	private restoreClosedTabInNewTab() {
 		if (this.closedTabsStack.length === 0) {
 			new Notice("No closed tab to restore.");
@@ -479,6 +527,9 @@ export default class MouseGesturesPlugin extends Plugin {
 		this.app.workspace.openLinkText(filePath, "", true);
 	}
 
+	/* --------------------------------------------
+	 * Obsidian再読み込み
+	 * -------------------------------------------- */
 	private reloadObsidian() {
 		const cmdId = "app:reload";
 		const allCommands: any = (this.app as any).commands?.commands;
@@ -486,15 +537,16 @@ export default class MouseGesturesPlugin extends Plugin {
 			this.debugLog("Reloading via Obsidian command: app:reload");
 			(this.app as any).commands.executeCommandById(cmdId);
 		} else {
-			this.debugLog("Obsidian command not found, reloading window via location.reload()");
+			this.debugLog("Obsidian command not found, fallback to location.reload()");
 			location.reload();
 		}
 	}
 
+	/* --------------------------------------------
+	 * オーバーレイ表示
+	 * -------------------------------------------- */
 	private showOverlayIfNeeded(symbol: string, label: string) {
-		if (!this.settings.showOverlay) {
-			return;
-		}
+		if (!this.settings.showOverlay) return;
 		this.showGestureOverlay(symbol, label);
 	}
 
@@ -537,6 +589,9 @@ export default class MouseGesturesPlugin extends Plugin {
 		}
 	}
 
+	/* --------------------------------------------
+	 * 2点間の距離
+	 * -------------------------------------------- */
 	private getDistance(x1: number, y1: number, x2: number, y2: number): number {
 		const dx = x2 - x1;
 		const dy = y2 - y1;
@@ -546,6 +601,7 @@ export default class MouseGesturesPlugin extends Plugin {
 
 /* -------------------------------------------------------------------------
  * 設定タブ
+ *  - 通常の右クリックジェスチャーやCmdジェスチャーのON/OFFは削除
  * ------------------------------------------------------------------------- */
 class MouseGesturesSettingTab extends PluginSettingTab {
 	plugin: MouseGesturesPlugin;
@@ -580,7 +636,7 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			});
 
 		/* -------------------------------
-		 * 描画関係
+		 * 描画設定
 		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.enableDrawingLabel)
@@ -588,8 +644,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableDrawing)
-					.onChange(async (value) => {
-						this.plugin.settings.enableDrawing = value;
+					.onChange(async (val) => {
+						this.plugin.settings.enableDrawing = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -600,8 +656,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addColorPicker((picker) =>
 				picker
 					.setValue(this.plugin.settings.strokeColor)
-					.onChange(async (value) => {
-						this.plugin.settings.strokeColor = value;
+					.onChange(async (val) => {
+						this.plugin.settings.strokeColor = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -614,15 +670,12 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 					.setLimits(1, 20, 1)
 					.setValue(this.plugin.settings.lineWidth)
 					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.lineWidth = value;
+					.onChange(async (val) => {
+						this.plugin.settings.lineWidth = val;
 						await this.plugin.saveSettings();
 					});
 			});
 
-		/* -------------------------------
-		 * ジェスチャー感度
-		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.gestureSensitivityLabel)
 			.setDesc(t.gestureSensitivityDesc)
@@ -631,60 +684,48 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 					.setLimits(10, 300, 5)
 					.setValue(this.plugin.settings.gestureSensitivity)
 					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.gestureSensitivity = value;
+					.onChange(async (val) => {
+						this.plugin.settings.gestureSensitivity = val;
 						await this.plugin.saveSettings();
 					});
 			});
 
-		/* -------------------------------
-		 * L字(複数方向)認識
-		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.enableMultiDirectionLabel)
 			.setDesc(t.enableMultiDirectionDesc)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableMultiDirection)
-					.onChange(async (value) => {
-						this.plugin.settings.enableMultiDirection = value;
+					.onChange(async (val) => {
+						this.plugin.settings.enableMultiDirection = val;
 						await this.plugin.saveSettings();
 					}),
 			);
 
-		/* -------------------------------
-		 * デバッグログ
-		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.enableDebugLogLabel)
 			.setDesc(t.enableDebugLogDesc)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableDebugLog)
-					.onChange(async (value) => {
-						this.plugin.settings.enableDebugLog = value;
+					.onChange(async (val) => {
+						this.plugin.settings.enableDebugLog = val;
 						await this.plugin.saveSettings();
 					}),
 			);
 
-		/* -------------------------------
-		 * オーバーレイ表示
-		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.showOverlayLabel)
 			.setDesc(t.showOverlayDesc)
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.showOverlay)
-					.onChange(async (value) => {
-						this.plugin.settings.showOverlay = value;
+					.onChange(async (val) => {
+						this.plugin.settings.showOverlay = val;
 						await this.plugin.saveSettings();
 					}),
 			);
 
-		/* -------------------------------
-		 * 閉じたタブの履歴上限
-		 * ------------------------------- */
 		new Setting(containerEl)
 			.setName(t.maxClosedTabsLabel)
 			.setDesc(t.maxClosedTabsDesc)
@@ -693,14 +734,14 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 					.setLimits(1, 20, 1)
 					.setValue(this.plugin.settings.maxClosedTabHistory)
 					.setDynamicTooltip()
-					.onChange(async (value) => {
-						this.plugin.settings.maxClosedTabHistory = value;
+					.onChange(async (val) => {
+						this.plugin.settings.maxClosedTabHistory = val;
 						await this.plugin.saveSettings();
 					});
 			});
 
 		/* -------------------------------
-		 * ナビゲーション一覧 (ON/OFF)
+		 * ナビゲーション設定
 		 * ------------------------------- */
 		containerEl.createEl("h3", { text: t.navSettingsLabel });
 
@@ -710,8 +751,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableScrollTop)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableScrollTop = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableScrollTop = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -722,8 +763,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableHistoryBack)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableHistoryBack = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableHistoryBack = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -734,8 +775,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableHistoryForward)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableHistoryForward = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableHistoryForward = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -746,8 +787,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableCloseTab)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableCloseTab = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableCloseTab = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -758,8 +799,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableRestoreTab)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableRestoreTab = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableRestoreTab = val;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -770,8 +811,8 @@ class MouseGesturesSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.navigation.enableReload)
-					.onChange(async (value) => {
-						this.plugin.settings.navigation.enableReload = value;
+					.onChange(async (val) => {
+						this.plugin.settings.navigation.enableReload = val;
 						await this.plugin.saveSettings();
 					}),
 			);
