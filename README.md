@@ -21,3 +21,8 @@
 2. **English**  
    - Perform gestures by holding down the right mouse button.  
    - You can check the list of available gestures in the settings.
+
+### 記事等
+[note記事 https://note.com/mekann/n/na2bb44e8be56](https://note.com/mekann/n/na2bb44e8be56)
+
+[実演 https://x.com/Mekann2904/status/1880588630974181567](https://x.com/Mekann2904/status/1880588630974181567)
